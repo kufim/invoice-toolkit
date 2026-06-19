@@ -82,8 +82,8 @@ class InvoiceApp(Tk):
     def __init__(self):
         super().__init__()
         self.title("Invoice Generator")
-        self.geometry("760x820")
-        self.minsize(680, 600)
+        self.geometry("840x960")
+        self.minsize(800, 640)
         self.rows: list[ItemRow] = []
         self.fields: dict[str, ttk.Entry] = {}
 
@@ -106,7 +106,8 @@ class InvoiceApp(Tk):
         scroll = ttk.Scrollbar(outer, orient="vertical", command=canvas.yview)
         body = ttk.Frame(canvas, padding=18)
         body.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
-        canvas.create_window((0, 0), window=body, anchor="nw")
+        win = canvas.create_window((0, 0), window=body, anchor="nw")
+        canvas.bind("<Configure>", lambda e: canvas.itemconfig(win, width=e.width))
         canvas.configure(yscrollcommand=scroll.set)
         canvas.pack(side=LEFT, fill=BOTH, expand=True)
         scroll.pack(side=RIGHT, fill=Y)
