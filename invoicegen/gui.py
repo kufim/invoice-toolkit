@@ -7,6 +7,7 @@ from tkinter import (
 )
 import tkinter as tk
 
+from . import themes
 from .models import Invoice
 from .renderer import render_pdf
 
@@ -86,6 +87,8 @@ class InvoiceApp(Tk):
         self.minsize(800, 640)
         self.rows: list[ItemRow] = []
         self.fields: dict[str, ttk.Entry] = {}
+        self.theme_name = themes.DEFAULT
+        self._swatches: dict = {}
 
         self.v_money = (self.register(mk_num(MAX_MONEY)), "%P")
         self.v_pct = (self.register(mk_num(100.0)), "%P")
@@ -163,11 +166,33 @@ class InvoiceApp(Tk):
 
         self.notes_text = self._textbox(body, "Notes")
         self.terms_text = self._textbox(body, "Terms")
+        self._theme_picker(body)
 
         actions = ttk.Frame(body); actions.pack(fill=X, pady=(16, 4))
         ttk.Button(actions, text="Generate PDF", command=self._generate).pack(side=LEFT)
         self.status = ttk.Label(actions, text="", foreground="#15803d")
         self.status.pack(side=LEFT, padx=12)
+
+    def _theme_picker(self, parent):
+        box = self._section(parent, "Color theme")
+        row = ttk.Frame(box); row.pack(fill=X)
+        for name in themes.ORDER:
+            header, accent = themes.THEMES[name]
+            cell = ttk.Frame(row); cell.pack(side=LEFT, padx=6)
+            sw = Canvas(cell, width=56, height=28, highlightthickness=2,
+                        highlightbackground="#d4d4d4", cursor="hand2")
+            sw.create_rectangle(0, 0, 28, 28, fill=themes.hex_color(header), outline="")
+            sw.create_rectangle(28, 0, 56, 28, fill=themes.hex_color(accent), outline="")
+            sw.pack()
+            ttk.Label(cell, text=name, font=("Helvetica", 8)).pack()
+            sw.bind("<Button-1>", lambda e, n=name: self._select_theme(n))
+            self._swatches[name] = sw
+        self._select_theme(self.theme_name)
+
+    def _select_theme(self, name):
+        self.theme_name = name
+        for n, sw in self._swatches.items():
+            sw.config(highlightbackground="#111214" if n == name else "#d4d4d4")
 
     def _section(self, parent, title, side=TOP):
         box = ttk.LabelFrame(parent, text=title, padding=10)
@@ -281,7 +306,7 @@ class InvoiceApp(Tk):
         if not path:
             return
         try:
-            render_pdf(Invoice.parse(data), path)
+            render_pdf(Invoice.parse(data), path, theme=self.theme_name)
         except Exception as exc:
             messagebox.showerror("Error", str(exc))
             return

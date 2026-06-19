@@ -5,11 +5,9 @@ from pathlib import Path
 from fpdf import FPDF
 
 from . import calculations as calc
+from . import themes
 from .models import Invoice
 
-SLATE = (17, 18, 20)
-ACCENT = (17, 18, 20)
-ACCENT_SOFT = (243, 244, 246)
 INK = (17, 18, 20)
 MUTED = (113, 118, 125)
 LIGHT = (190, 194, 200)
@@ -35,8 +33,9 @@ class InvoicePDF(FPDF):
         pass
 
 
-def render_pdf(invoice: Invoice, output: str | Path) -> Path:
+def render_pdf(invoice: Invoice, output: str | Path, theme: str = themes.DEFAULT) -> Path:
     output = Path(output)
+    pal = themes.palette(theme)
     pdf = InvoicePDF(orientation="P", unit="mm", format="A4")
     pdf.set_auto_page_break(auto=True, margin=18)
     pdf.set_margins(MARGIN, MARGIN, MARGIN)
@@ -47,19 +46,19 @@ def render_pdf(invoice: Invoice, output: str | Path) -> Path:
 
     pdf.add_page()
 
-    _header_band(pdf, invoice)
+    _header_band(pdf, invoice, pal)
     pdf.set_y(BAND_H + 12)
-    _meta_and_parties(pdf, invoice)
-    _items_table(pdf, invoice)
-    _totals_block(pdf, invoice)
+    _meta_and_parties(pdf, invoice, pal)
+    _items_table(pdf, invoice, pal)
+    _totals_block(pdf, invoice, pal)
     _notes_block(pdf, invoice)
 
     pdf.output(str(output))
     return output
 
 
-def _header_band(pdf: InvoicePDF, invoice: Invoice) -> None:
-    pdf.set_fill_color(*SLATE)
+def _header_band(pdf, invoice, pal):
+    pdf.set_fill_color(*pal["header"])
     pdf.rect(0, 0, PAGE_W, BAND_H, style="F")
 
     y = 14
@@ -86,7 +85,7 @@ def _header_band(pdf: InvoicePDF, invoice: Invoice) -> None:
     pdf.cell(CONTENT_W, 6, f"# {invoice.number}", align="R")
 
 
-def _meta_and_parties(pdf: InvoicePDF, invoice: Invoice) -> None:
+def _meta_and_parties(pdf, invoice, pal):
     top = pdf.get_y()
     col = CONTENT_W / 2
 
@@ -103,7 +102,7 @@ def _meta_and_parties(pdf: InvoicePDF, invoice: Invoice) -> None:
     meta = [(k, v) for k, v in meta if v]
     if meta:
         bx = PAGE_W - MARGIN - 64
-        pdf.set_fill_color(*ACCENT_SOFT)
+        pdf.set_fill_color(*pal["soft"])
         pdf.rect(bx, top - 2, 64, 6.5 * len(meta) + 4, style="F")
         my = top + 1
         for label, value in meta:
@@ -119,7 +118,7 @@ def _meta_and_parties(pdf: InvoicePDF, invoice: Invoice) -> None:
     pdf.set_y(max(top + 26, pdf.get_y()))
 
 
-def _party_column(pdf: InvoicePDF, x: float, y: float, w: float, label: str, party) -> None:
+def _party_column(pdf, x, y, w, label, party):
     pdf.set_xy(x, y)
     pdf.set_font("DejaVu", "B", 8)
     pdf.set_text_color(*MUTED)
@@ -135,9 +134,9 @@ def _party_column(pdf: InvoicePDF, x: float, y: float, w: float, label: str, par
         pdf.multi_cell(w, 4.2, party.address)
 
 
-def _items_table(pdf: InvoicePDF, invoice: Invoice) -> None:
+def _items_table(pdf, invoice, pal):
     widths = [CONTENT_W * 0.52, CONTENT_W * 0.14, CONTENT_W * 0.17, CONTENT_W * 0.17]
-    pdf.set_fill_color(*ACCENT)
+    pdf.set_fill_color(*pal["accent"])
     pdf.set_text_color(255, 255, 255)
     pdf.set_font("DejaVu", "B", 8.5)
     pdf.set_x(MARGIN)
@@ -150,7 +149,6 @@ def _items_table(pdf: InvoicePDF, invoice: Invoice) -> None:
     pdf.set_font("DejaVu", "", 9.5)
     pdf.set_draw_color(*LINE)
     for item in invoice.items:
-        y = pdf.get_y()
         pdf.set_x(MARGIN)
         pdf.set_text_color(*INK)
         pdf.cell(widths[0], 8.5, "  " + item.description)
@@ -164,7 +162,7 @@ def _items_table(pdf: InvoicePDF, invoice: Invoice) -> None:
     pdf.ln(6)
 
 
-def _totals_block(pdf: InvoicePDF, invoice: Invoice) -> None:
+def _totals_block(pdf, invoice, pal):
     s = calc.summary(invoice)
     label_w = CONTENT_W * 0.28
     value_w = CONTENT_W * 0.22
@@ -183,7 +181,7 @@ def _totals_block(pdf: InvoicePDF, invoice: Invoice) -> None:
         bold = label == "Total"
         pdf.set_x(x)
         pdf.set_font("DejaVu", "B" if bold else "", 10 if bold else 9.5)
-        pdf.set_text_color(*INK if bold else MUTED)
+        pdf.set_text_color(*(INK if bold else MUTED))
         pdf.cell(label_w, 7, label)
         pdf.set_font("DejaVu", "B" if bold else "", 10 if bold else 9.5)
         pdf.set_text_color(*INK)
@@ -192,7 +190,7 @@ def _totals_block(pdf: InvoicePDF, invoice: Invoice) -> None:
 
     pdf.ln(2)
     by = pdf.get_y()
-    pdf.set_fill_color(*ACCENT)
+    pdf.set_fill_color(*pal["accent"])
     pdf.rect(x, by, label_w + value_w, 13, style="F")
     pdf.set_xy(x + 4, by)
     pdf.set_font("DejaVu", "B", 11)
@@ -203,7 +201,7 @@ def _totals_block(pdf: InvoicePDF, invoice: Invoice) -> None:
     pdf.ln(20)
 
 
-def _notes_block(pdf: InvoicePDF, invoice: Invoice) -> None:
+def _notes_block(pdf, invoice):
     for label, text in (("Notes", invoice.notes), ("Terms", invoice.terms)):
         if not text:
             continue
@@ -219,5 +217,5 @@ def _notes_block(pdf: InvoicePDF, invoice: Invoice) -> None:
         pdf.ln(3)
 
 
-def _fmt_qty(value: float) -> str:
+def _fmt_qty(value):
     return str(int(value)) if float(value).is_integer() else f"{value:g}"
