@@ -40,6 +40,11 @@ def render_pdf(invoice: Invoice, output: str | Path) -> Path:
     pdf = InvoicePDF(orientation="P", unit="mm", format="A4")
     pdf.set_auto_page_break(auto=True, margin=18)
     pdf.set_margins(MARGIN, MARGIN, MARGIN)
+
+    fonts = Path(__file__).parent / "assets"
+    pdf.add_font("DejaVu", "", str(fonts / "DejaVuSans.ttf"))
+    pdf.add_font("DejaVu", "B", str(fonts / "DejaVuSans-Bold.ttf"))
+
     pdf.add_page()
 
     _header_band(pdf, invoice)
@@ -62,21 +67,21 @@ def _header_band(pdf: InvoicePDF, invoice: Invoice) -> None:
         pdf.image(invoice.logo, x=MARGIN, y=y, h=18)
     else:
         pdf.set_xy(MARGIN, y)
-        pdf.set_font("Helvetica", "B", 16)
+        pdf.set_font("DejaVu", "B", 16)
         pdf.set_text_color(255, 255, 255)
         pdf.cell(CONTENT_W * 0.6, 8, invoice.sender.name or "")
         if invoice.sender.address:
             pdf.set_xy(MARGIN, y + 9)
-            pdf.set_font("Helvetica", "", 8.5)
+            pdf.set_font("DejaVu", "", 8.5)
             pdf.set_text_color(*LIGHT)
             pdf.multi_cell(CONTENT_W * 0.55, 4.2, invoice.sender.address)
 
     pdf.set_xy(MARGIN, 12)
-    pdf.set_font("Helvetica", "B", 28)
+    pdf.set_font("DejaVu", "B", 28)
     pdf.set_text_color(255, 255, 255)
     pdf.cell(CONTENT_W, 12, "INVOICE", align="R")
     pdf.set_xy(MARGIN, 27)
-    pdf.set_font("Helvetica", "", 11)
+    pdf.set_font("DejaVu", "", 11)
     pdf.set_text_color(*LIGHT)
     pdf.cell(CONTENT_W, 6, f"# {invoice.number}", align="R")
 
@@ -103,10 +108,10 @@ def _meta_and_parties(pdf: InvoicePDF, invoice: Invoice) -> None:
         my = top + 1
         for label, value in meta:
             pdf.set_xy(bx + 4, my)
-            pdf.set_font("Helvetica", "", 8.5)
+            pdf.set_font("DejaVu", "", 8.5)
             pdf.set_text_color(*MUTED)
             pdf.cell(30, 5, label)
-            pdf.set_font("Helvetica", "B", 8.5)
+            pdf.set_font("DejaVu", "B", 8.5)
             pdf.set_text_color(*INK)
             pdf.cell(26, 5, value, align="R")
             my += 6.5
@@ -116,16 +121,16 @@ def _meta_and_parties(pdf: InvoicePDF, invoice: Invoice) -> None:
 
 def _party_column(pdf: InvoicePDF, x: float, y: float, w: float, label: str, party) -> None:
     pdf.set_xy(x, y)
-    pdf.set_font("Helvetica", "B", 8)
+    pdf.set_font("DejaVu", "B", 8)
     pdf.set_text_color(*MUTED)
     pdf.cell(w, 4.5, label.upper())
     pdf.set_xy(x, y + 5.5)
-    pdf.set_font("Helvetica", "B", 10.5)
+    pdf.set_font("DejaVu", "B", 10.5)
     pdf.set_text_color(*INK)
     pdf.cell(w, 5, party.name)
     if party.address:
         pdf.set_xy(x, y + 10.5)
-        pdf.set_font("Helvetica", "", 8.5)
+        pdf.set_font("DejaVu", "", 8.5)
         pdf.set_text_color(*MUTED)
         pdf.multi_cell(w, 4.2, party.address)
 
@@ -134,7 +139,7 @@ def _items_table(pdf: InvoicePDF, invoice: Invoice) -> None:
     widths = [CONTENT_W * 0.52, CONTENT_W * 0.14, CONTENT_W * 0.17, CONTENT_W * 0.17]
     pdf.set_fill_color(*ACCENT)
     pdf.set_text_color(255, 255, 255)
-    pdf.set_font("Helvetica", "B", 8.5)
+    pdf.set_font("DejaVu", "B", 8.5)
     pdf.set_x(MARGIN)
     pdf.cell(widths[0], 9, "  ITEM", fill=True)
     pdf.cell(widths[1], 9, "QTY", align="C", fill=True)
@@ -142,7 +147,7 @@ def _items_table(pdf: InvoicePDF, invoice: Invoice) -> None:
     pdf.cell(widths[3], 9, "AMOUNT  ", align="R", fill=True)
     pdf.ln(9)
 
-    pdf.set_font("Helvetica", "", 9.5)
+    pdf.set_font("DejaVu", "", 9.5)
     pdf.set_draw_color(*LINE)
     for item in invoice.items:
         y = pdf.get_y()
@@ -177,10 +182,10 @@ def _totals_block(pdf: InvoicePDF, invoice: Invoice) -> None:
     for label, value in rows:
         bold = label == "Total"
         pdf.set_x(x)
-        pdf.set_font("Helvetica", "B" if bold else "", 10 if bold else 9.5)
+        pdf.set_font("DejaVu", "B" if bold else "", 10 if bold else 9.5)
         pdf.set_text_color(*INK if bold else MUTED)
         pdf.cell(label_w, 7, label)
-        pdf.set_font("Helvetica", "B" if bold else "", 10 if bold else 9.5)
+        pdf.set_font("DejaVu", "B" if bold else "", 10 if bold else 9.5)
         pdf.set_text_color(*INK)
         pdf.cell(value_w, 7, _money(invoice.currency, value), align="R")
         pdf.ln(7)
@@ -190,7 +195,7 @@ def _totals_block(pdf: InvoicePDF, invoice: Invoice) -> None:
     pdf.set_fill_color(*ACCENT)
     pdf.rect(x, by, label_w + value_w, 13, style="F")
     pdf.set_xy(x + 4, by)
-    pdf.set_font("Helvetica", "B", 11)
+    pdf.set_font("DejaVu", "B", 11)
     pdf.set_text_color(255, 255, 255)
     pdf.cell(label_w, 13, "Balance Due")
     pdf.set_xy(x, by)
@@ -203,12 +208,12 @@ def _notes_block(pdf: InvoicePDF, invoice: Invoice) -> None:
         if not text:
             continue
         pdf.set_x(MARGIN)
-        pdf.set_font("Helvetica", "B", 8.5)
+        pdf.set_font("DejaVu", "B", 8.5)
         pdf.set_text_color(*MUTED)
         pdf.cell(CONTENT_W, 5.5, label.upper())
         pdf.ln(5.5)
         pdf.set_x(MARGIN)
-        pdf.set_font("Helvetica", "", 9)
+        pdf.set_font("DejaVu", "", 9)
         pdf.set_text_color(*MUTED)
         pdf.multi_cell(CONTENT_W, 4.8, text)
         pdf.ln(3)

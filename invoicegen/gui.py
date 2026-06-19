@@ -12,18 +12,34 @@ from .renderer import render_pdf
 
 
 ENTRY_W = 38
-MONEY_FIELDS = {"rate", "discount", "shipping", "amount_paid"}
-NUMBER_FIELDS = {"quantity", "tax_rate"}
+MAX_MONEY = 99_999_999.99
+MAX_QTY = 1_000_000.0
+CURRENCIES = [("USD", "$"), ("EUR", "€"), ("GBP", "£"), ("JPY", "¥"),
+              ("CHF", "CHF"), ("CAD", "C$"), ("AUD", "A$")]
 
 
-def _num_ok(proposed: str) -> bool:
-    if proposed.strip() in ("", "-", "."):
+def mk_num(max_value, decimals=2):
+    def validate(proposed: str) -> bool:
+        p = proposed.strip()
+        if p in ("", "."):
+            return True
+        clean = p.replace(",", "")
+        try:
+            value = float(clean)
+        except ValueError:
+            return False
+        if value < 0 or value > max_value:
+            return False
+        if "." in clean and len(clean.split(".")[1]) > decimals:
+            return False
         return True
-    try:
-        float(proposed.replace(",", ""))
-        return True
-    except ValueError:
-        return False
+    return validate
+
+
+def mk_len(max_len):
+    def validate(proposed: str) -> bool:
+        return len(proposed) <= max_len
+    return validate
 
 
 def _to_float(value, default):
@@ -34,11 +50,11 @@ def _to_float(value, default):
 
 
 class ItemRow:
-    def __init__(self, parent, on_remove, vnum, money_fmt):
+    def __init__(self, parent, on_remove, v_qty, v_rate, v_desc, money_fmt):
         self.frame = ttk.Frame(parent)
-        self.description = ttk.Entry(self.frame, width=44)
-        self.quantity = ttk.Entry(self.frame, width=8, validate="key", validatecommand=vnum)
-        self.rate = ttk.Entry(self.frame, width=12, validate="key", validatecommand=vnum)
+        self.description = ttk.Entry(self.frame, width=44, validate="key", validatecommand=v_desc)
+        self.quantity = ttk.Entry(self.frame, width=8, validate="key", validatecommand=v_qty)
+        self.rate = ttk.Entry(self.frame, width=12, validate="key", validatecommand=v_rate)
         self.quantity.insert(0, "1")
         self.rate.insert(0, "0.00")
         self.rate.bind("<FocusOut>", lambda e: money_fmt(self.rate))
@@ -70,7 +86,17 @@ class InvoiceApp(Tk):
         self.minsize(680, 600)
         self.rows: list[ItemRow] = []
         self.fields: dict[str, ttk.Entry] = {}
-        self.vnum = (self.register(_num_ok), "%P")
+
+        self.v_money = (self.register(mk_num(MAX_MONEY)), "%P")
+        self.v_pct = (self.register(mk_num(100.0)), "%P")
+        self.v_qty = (self.register(mk_num(MAX_QTY, decimals=3)), "%P")
+        self.v_cur = (self.register(mk_len(3)), "%P")
+        self.v_num = (self.register(mk_len(20)), "%P")
+        self.v_name = (self.register(mk_len(60)), "%P")
+        self.v_addr = (self.register(mk_len(120)), "%P")
+        self.v_short = (self.register(mk_len(40)), "%P")
+        self.v_desc = (self.register(mk_len(70)), "%P")
+
         self._build()
 
     def _build(self):
@@ -95,24 +121,29 @@ class InvoiceApp(Tk):
         ttk.Button(lrow, text="Browse", command=self._pick_logo).pack(side=LEFT)
 
         frm = self._section(body, "From")
-        self._entry(frm, "from_name", "Name")
-        self._entry(frm, "from_address", "Address")
+        self._entry(frm, "from_name", "Name", vcmd=self.v_name)
+        self._entry(frm, "from_address", "Address", vcmd=self.v_addr)
 
         cols = ttk.Frame(body); cols.pack(fill=X, pady=(6, 0))
         bill = self._section(cols, "Bill To", side=LEFT)
-        self._entry(bill, "bill_name", "Name")
-        self._entry(bill, "bill_address", "Address")
+        self._entry(bill, "bill_name", "Name", vcmd=self.v_name)
+        self._entry(bill, "bill_address", "Address", vcmd=self.v_addr)
         ship = self._section(cols, "Ship To", side=LEFT)
-        self._entry(ship, "ship_name", "Name")
-        self._entry(ship, "ship_address", "Address")
+        self._entry(ship, "ship_name", "Name", vcmd=self.v_name)
+        self._entry(ship, "ship_address", "Address", vcmd=self.v_addr)
 
         det = self._section(body, "Invoice Details")
-        self._entry(det, "number", "Invoice #", default="1")
-        self._entry(det, "date", "Date (YYYY-MM-DD)", kind="date")
-        self._entry(det, "payment_terms", "Payment Terms")
-        self._entry(det, "due_date", "Due Date", kind="date")
-        self._entry(det, "po_number", "PO Number")
-        self._entry(det, "currency", "Currency", default="$")
+        self._entry(det, "number", "Invoice #", default="1", vcmd=self.v_num)
+        self._entry(det, "date", "Date (YYYY-MM-DD)", date=True)
+        self._entry(det, "payment_terms", "Payment Terms", vcmd=self.v_short)
+        self._entry(det, "due_date", "Due Date", date=True)
+        self._entry(det, "po_number", "PO Number", vcmd=self.v_short)
+        crow = ttk.Frame(det); crow.pack(fill=X, pady=2)
+        ttk.Label(crow, text="Currency", width=18).pack(side=LEFT)
+        self.currency_map = {f"{code}   {sym}": sym for code, sym in CURRENCIES}
+        self.currency_var = StringVar(value="USD   $")
+        ttk.Combobox(crow, textvariable=self.currency_var, values=list(self.currency_map),
+                     state="readonly", width=ENTRY_W - 2).pack(side=LEFT, fill=X, expand=True)
 
         items = self._section(body, "Line Items")
         head = ttk.Frame(items); head.pack(fill=X, pady=(0, 2))
@@ -124,10 +155,10 @@ class InvoiceApp(Tk):
         self._add_row()
 
         adj = self._section(body, "Totals")
-        self._entry(adj, "tax_rate", "Tax %", default="0", kind="number")
-        self._entry(adj, "discount", "Discount", default="0.00", kind="money")
-        self._entry(adj, "shipping", "Shipping", default="0.00", kind="money")
-        self._entry(adj, "amount_paid", "Amount Paid", default="0.00", kind="money")
+        self._entry(adj, "tax_rate", "Tax % (0-100)", default="0", vcmd=self.v_pct)
+        self._entry(adj, "discount", "Discount", default="0.00", vcmd=self.v_money, money=True)
+        self._entry(adj, "shipping", "Shipping", default="0.00", vcmd=self.v_money, money=True)
+        self._entry(adj, "amount_paid", "Amount Paid", default="0.00", vcmd=self.v_money, money=True)
 
         self.notes_text = self._textbox(body, "Notes")
         self.terms_text = self._textbox(body, "Terms")
@@ -142,15 +173,15 @@ class InvoiceApp(Tk):
         box.pack(side=side, fill=BOTH, expand=True, padx=(0, 10) if side == LEFT else 0, pady=6)
         return box
 
-    def _entry(self, parent, key, label, default="", kind="text"):
+    def _entry(self, parent, key, label, default="", vcmd=None, money=False, date=False):
         row = ttk.Frame(parent); row.pack(fill=X, pady=2)
         ttk.Label(row, text=label, width=18).pack(side=LEFT)
         e = ttk.Entry(row, width=ENTRY_W)
-        if kind in ("number", "money"):
-            e.config(validate="key", validatecommand=self.vnum)
-        if kind == "money":
-            e.bind("<FocusOut>", lambda ev: self._format_money(e))
-        if kind == "date":
+        if vcmd is not None:
+            e.config(validate="key", validatecommand=vcmd)
+        if money:
+            e.bind("<FocusOut>", lambda ev: self._format_money(e, vcmd))
+        if date:
             e.bind("<KeyRelease>", lambda ev: self._format_date(e))
         if default:
             e.insert(0, default)
@@ -163,7 +194,7 @@ class InvoiceApp(Tk):
         t.pack(fill=X)
         return t
 
-    def _format_money(self, entry):
+    def _format_money(self, entry, vcmd):
         raw = entry.get().replace(",", "").strip()
         if raw in ("", "-", "."):
             return
@@ -174,23 +205,24 @@ class InvoiceApp(Tk):
         entry.config(validate="none")
         entry.delete(0, END)
         entry.insert(0, f"{value:,.2f}")
-        entry.config(validate="key", validatecommand=self.vnum)
+        if vcmd is not None:
+            entry.config(validate="key", validatecommand=vcmd)
 
     def _format_date(self, entry):
         digits = "".join(c for c in entry.get() if c.isdigit())[:8]
-        chunks = [digits[:4]]
-        if len(digits) > 4:
-            chunks.append(digits[4:6])
-        if len(digits) > 6:
-            chunks.append(digits[6:8])
-        formatted = "-".join(c for c in chunks if c)
+        year, month, day = digits[:4], digits[4:6], digits[6:8]
+        if len(month) == 2:
+            month = "12" if int(month) > 12 else ("01" if int(month) == 0 else month)
+        if len(day) == 2:
+            day = "31" if int(day) > 31 else ("01" if int(day) == 0 else day)
+        formatted = "-".join(c for c in (year, month, day) if c)
         if formatted != entry.get():
             entry.delete(0, END)
             entry.insert(0, formatted)
             entry.icursor(END)
 
     def _add_row(self):
-        self.rows.append(ItemRow(self.items_frame, self._remove_row, self.vnum, self._format_money))
+        self.rows.append(ItemRow(self.items_frame, self._remove_row, self.v_qty, self.v_money, self.v_desc, lambda e: self._format_money(e, self.v_money)))
 
     def _remove_row(self, row):
         if len(self.rows) <= 1:
@@ -218,7 +250,7 @@ class InvoiceApp(Tk):
             "payment_terms": f["payment_terms"].get().strip(),
             "due_date": f["due_date"].get().strip(),
             "po_number": f["po_number"].get().strip(),
-            "currency": f["currency"].get().strip() or "$",
+            "currency": self.currency_map.get(self.currency_var.get(), "$"),
             "items": [i for i in items if i],
             "tax_rate": _to_float(f["tax_rate"].get(), 0),
             "discount": _to_float(f["discount"].get(), 0),
@@ -234,6 +266,11 @@ class InvoiceApp(Tk):
         if not data["items"]:
             messagebox.showwarning("Nothing to invoice", "Add at least one line item.")
             return
+        for label, key in (("Date", "date"), ("Due Date", "due_date")):
+            value = data[key]
+            if value and not _valid_date(value):
+                messagebox.showwarning("Check the date", f"{label} should be a full YYYY-MM-DD date.")
+                return
         path = filedialog.asksaveasfilename(
             title="Save invoice",
             defaultextension=".pdf",
@@ -249,6 +286,15 @@ class InvoiceApp(Tk):
             return
         self.status.config(text=f"Saved {Path(path).name}")
         _open_file(path)
+
+
+def _valid_date(value: str) -> bool:
+    import datetime
+    try:
+        datetime.date.fromisoformat(value)
+        return True
+    except ValueError:
+        return False
 
 
 def _open_file(path):
