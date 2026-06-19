@@ -29,7 +29,17 @@ Or install it as a command:
 pip install .
 ```
 
-## Usage
+## Input panel
+
+Prefer filling in a form over editing JSON? Launch the desktop panel:
+
+```bash
+python run.py
+```
+
+(or `python -m invoicegen.gui`, or `invoicegen-gui` once installed). Fill in the fields, add line items, pick a logo, and click **Generate PDF**.
+
+## Command line
 
 ```bash
 python -m invoicegen examples/sample_invoice.json

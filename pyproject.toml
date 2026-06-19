@@ -13,5 +13,8 @@ dependencies = ["fpdf2>=2.7.6"]
 [project.scripts]
 invoicegen = "invoicegen.cli:main"
 
+[project.gui-scripts]
+invoicegen-gui = "invoicegen.gui:main"
+
 [tool.setuptools]
 packages = ["invoicegen"]
