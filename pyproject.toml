@@ -8,10 +8,11 @@ version = "1.0.0"
 description = "A small command-line tool that turns a JSON file into a clean PDF invoice."
 readme = "README.md"
 requires-python = ">=3.9"
-dependencies = ["fpdf2>=2.7.6"]
+dependencies = ["fpdf2>=2.7.6", "pdfplumber>=0.11.0"]
 
 [project.scripts]
 invoicegen = "invoicegen.cli:main"
+invoice-process = "invoicegen.process_cli:main"
 
 [project.gui-scripts]
 invoicegen-gui = "invoicegen.gui:main"
