@@ -1,21 +1,25 @@
-# invoice-generator
+# invoice-toolkit
 
-A small command-line tool that turns a JSON file into a clean, professional PDF invoice. Logo, sender and recipient details, line items, automatic totals (tax, discount, shipping, amount paid, balance due), notes and terms.
+A small Python toolkit for invoices. Two sides to it: create clean PDF invoices, and process incoming ones into data you can actually use.
 
 ## Backstory
 
-I applied for a "Python Development for Invoice Process Automation" internship and got turned down. So I built the invoice side of it myself, end to end, in Python.
+I applied for a "Python Development for Invoice Process Automation" internship and got turned down. So I built both ends of it myself in Python, the part that makes invoices and the part that processes them.
 
-## Features
+## What's in it
 
-- Single JSON file in, polished PDF out
-- Optional logo
-- Bill-to and ship-to parties
-- Unlimited line items, `quantity x rate` totalled automatically
-- Subtotal, percentage tax, flat discount, shipping, amount paid and balance due
-- Any currency symbol
-- Notes and terms sections
-- No web service or account, everything runs locally
+**Generate invoices**
+
+- a desktop panel: fill in a form, pick a color theme, hit generate, get a PDF
+- or a command line version that turns a JSON file into the same PDF
+- logo, sender and recipient, line items, automatic totals (tax, discount, shipping, amount paid, balance due), notes and terms
+
+**Process incoming invoices**
+
+- point it at a folder of invoice PDFs
+- it reads each one and pulls out the invoice number, vendor, date, currency and total
+- writes one CSV with every invoice as a row
+- writes a short report: how many it processed, totals per currency, anything missing a field, and duplicate invoice numbers
 
 ## Install
 
@@ -23,76 +27,43 @@ I applied for a "Python Development for Invoice Process Automation" internship a
 pip install -r requirements.txt
 ```
 
-Or install it as a command:
+## Generating invoices
 
-```bash
-pip install .
-```
-
-## Input panel
-
-Prefer filling in a form over editing JSON? Launch the desktop panel:
+Desktop panel:
 
 ```bash
 python run.py
 ```
 
-(or `python -m invoicegen.gui`, or `invoicegen-gui` once installed). Fill in the fields, add line items, pick a logo, and click **Generate PDF**.
-
-## Command line
+Command line, from a JSON file:
 
 ```bash
-python -m invoicegen examples/sample_invoice.json
+python -m invoicegen examples/sample_invoice.json -o invoice.pdf
 ```
 
-Choose the output path:
+## Processing invoices
+
+Point it at a folder of invoice PDFs:
 
 ```bash
-python -m invoicegen examples/sample_invoice.json -o acme.pdf
+python -m invoicegen.process_cli path/to/folder -o invoices.csv -r report.txt
 ```
 
-If installed as a package, the `invoicegen` command works the same way:
-
-```bash
-invoicegen examples/sample_invoice.json -o acme.pdf
-```
-
-## Invoice file
-
-```json
-{
-  "number": "1024",
-  "from": { "name": "Northwind Studio", "address": "12 Keizersgracht\n1015 Amsterdam" },
-  "bill_to": { "name": "Acme Corp", "address": "440 Market Street\nSan Francisco, CA" },
-  "ship_to": { "name": "Acme Warehouse", "address": "8 Dockside Road\nOakland, CA" },
-  "date": "2026-06-20",
-  "payment_terms": "Net 14",
-  "due_date": "2026-07-04",
-  "po_number": "PO-5567",
-  "currency": "$",
-  "items": [
-    { "description": "Brand identity design", "quantity": 1, "rate": 2400 },
-    { "description": "Copywriting (per page)", "quantity": 6, "rate": 120 }
-  ],
-  "tax_rate": 9,
-  "discount": 250,
-  "shipping": 0,
-  "amount_paid": 1000,
-  "notes": "Thanks for your business.",
-  "terms": "Payment due within 14 days."
-}
-```
-
-Every field is optional except the line items. `logo` takes a path to an image file.
+You get `invoices.csv` (one row per invoice) and `report.txt` (totals per currency, missing fields, duplicate invoice numbers).
 
 ## Project layout
 
 ```
 invoicegen/
-  models.py        data model (Invoice, LineItem, Party)
+  models.py        the invoice data model
   calculations.py  totals and balance
-  renderer.py      PDF rendering
-  cli.py           command-line entry point
+  renderer.py      pdf output
+  themes.py        color themes
+  gui.py           desktop panel
+  cli.py           generate from a json file
+  extraction.py    read the fields out of a pdf
+  processor.py     process a folder and build the report
+  process_cli.py   the processing command
 examples/
   sample_invoice.json
 ```
